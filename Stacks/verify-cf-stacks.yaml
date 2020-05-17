@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: stacks
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ../Templates/verify-cf-vpc.yaml
+      Parameters:
+        VPCName: Verify-cloudformation
+        VPCCiderBlock: 192.168.0.0/16
+        PrivateSubnetCiderBlock: 192.168.10.0/24
+
+  Ec2InstanceStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - VpcStack
+    Properties:
+      TemplateURL: ../Templates/verify-cf-ec2.yaml
+      Parameters:
+        VPCName: Verify-cloudformation

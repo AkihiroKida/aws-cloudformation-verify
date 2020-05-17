@@ -1,0 +1,188 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: vpc, private subnet, vpc endpoint, security group
+
+Parameters:
+  VPCName:
+    Description: Target VPC Name
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: ^[a-zA-Z][-a-zA-Z0-9]*$
+
+  VPCCiderBlock:
+    Description: CiderBlock paramater for VPC
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+
+  PrivateSubnetCiderBlock:
+    Description: CiderBlock paramater for VPC
+    Type: String
+    MinLength: 9
+    MaxLength: 18
+    AllowedPattern: (\d{1,3})\.(\d{1,3})\.(\d{1,3})\.(\d{1,3})/(\d{1,2})
+
+Resources:
+  VPC:
+    Type: AWS::EC2::VPC
+    Properties:
+      CidrBlock: !Ref VPCCiderBlock
+      InstanceTenancy: default
+      EnableDnsSupport: true
+      EnableDnsHostnames: true
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCName}
+
+  PrivateSubnet:
+    Type: AWS::EC2::Subnet
+    Properties:
+      CidrBlock: !Ref PrivateSubnetCiderBlock
+      VpcId: !Ref VPC
+      AvailabilityZone: !Select [ 0, !GetAZs '' ]
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCName}-PrivateSubnet
+
+  PrivateRouteTable:
+    Type: AWS::EC2::RouteTable
+    Properties:
+      VpcId: !Ref VPC
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCName}-PrivateRoute
+
+  PrivateSubnetAssociation:
+    Type: AWS::EC2::SubnetRouteTableAssociation
+    Properties:
+      SubnetId: !Ref PrivateSubnet
+      RouteTableId: !Ref PrivateRouteTable
+
+  SecurityGroupEndpoint:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SecurityGroupEndpoint
+      GroupDescription: https access
+      VpcId: !Ref VPC
+      Tags:
+        - Key : Name
+          Value: !Sub ${VPCName}-SecurityGroupEndpoint
+
+  SecurityGroupInggressEndpoint:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroupEndpoint
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref SecurityGroupInstance
+
+  SecurityGroupInstance:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupName: SecurityGroupInstance
+      GroupDescription: https access
+      VpcId: !Ref VPC
+      Tags:
+        - Key : Name
+          Value: !Sub ${VPCName}-SecurityGroupInstance
+
+  SecurityGroupInggressInstance:
+    Type: AWS::EC2::SecurityGroupIngress
+    Properties:
+      GroupId: !Ref SecurityGroupInstance
+      IpProtocol: tcp
+      FromPort: 443
+      ToPort: 443
+      SourceSecurityGroupId: !Ref SecurityGroupEndpoint
+
+  S3Endpoint:
+    Type: "AWS::EC2::VPCEndpoint"
+    Properties:
+      RouteTableIds:
+        - !Ref PrivateRouteTable
+      ServiceName: !Sub "com.amazonaws.${AWS::Region}.s3"
+      VpcId: !Ref VPC
+
+  SSMEndpoint:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ssm
+      SubnetIds:
+        - !Ref PrivateSubnet
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref SecurityGroupEndpoint
+      PrivateDnsEnabled: true
+
+  SSMEndpointEc2messages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ec2messages
+      SubnetIds:
+        - !Ref PrivateSubnet
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref SecurityGroupEndpoint
+      PrivateDnsEnabled: true
+
+  SSMEndpointMessages:
+    Type: AWS::EC2::VPCEndpoint
+    Properties:
+      ServiceName: !Join
+        - ''
+        - - com.amazonaws.
+          - !Ref 'AWS::Region'
+          - .ssmmessages
+      SubnetIds:
+        - !Ref PrivateSubnet
+      VpcId: !Ref VPC
+      VpcEndpointType: Interface
+      SecurityGroupIds:
+        - !Ref SecurityGroupEndpoint
+      PrivateDnsEnabled: true
+
+Outputs:
+  VPC:
+    Description: VPC ID
+    Value: !Ref VPC
+    Export:
+      Name: !Sub ${VPCName}-VPCID
+
+  PrivateSubnet:
+    Description: PrivateSubnet
+    Value: !Ref PrivateSubnet
+    Export:
+      Name: !Sub ${VPCName}-PrivateSubnet
+
+  PrivateSubnetArn:
+    Description: PrivateSubnetArn
+    Value: !Sub
+      - arn:aws:ec2:${AWS::Region}:${AWS::AccountId}:subnet/${PrivateSubnet}
+      - PrivateSubnet: !Ref PrivateSubnet
+    Export:
+      Name: !Sub ${VPCName}-PrivateSubnetArn
+
+  SecurityGroupInstance:
+    Description: Security Group for EC2 Instance
+    Value: !Ref SecurityGroupInstance
+    Export:
+      Name: !Sub ${VPCName}-SecurityGroupInstance
+
+  EnvironmentRegion:
+    Description: Dev Environment Region
+    Value: !Sub ${AWS::Region}
+    Export:
+      Name: !Sub ${VPCName}-EnvironmentRegion

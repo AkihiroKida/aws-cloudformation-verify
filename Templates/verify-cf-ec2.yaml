@@ -1,0 +1,78 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: EC2 Instance
+
+Parameters:
+  VPCName:
+    Description: Target VPC Name
+    Type: String
+    MinLength: 1
+    MaxLength: 255
+    AllowedPattern: ^[a-zA-Z][-a-zA-Z0-9]*$
+
+Resources:
+  Instance:
+    Type: AWS::EC2::Instance
+    Properties:
+      IamInstanceProfile: !Ref ServerProfile
+      ImageId: "ami-054362537f5132ce2"
+      InstanceType: t2.micro
+      BlockDeviceMappings:
+        - DeviceName: /dev/xvda
+          Ebs:
+            VolumeType: gp2
+            VolumeSize: 8
+            DeleteOnTermination: true
+      NetworkInterfaces:
+        - AssociatePublicIpAddress: false
+          DeviceIndex: 0
+          DeleteOnTermination: true
+          GroupSet:
+            - Fn::ImportValue: !Sub ${VPCName}-SecurityGroupInstance
+          SubnetId:
+            Fn::ImportValue: !Sub ${VPCName}-PrivateSubnet
+      Tags:
+        - Key: Name
+          Value: !Sub ${VPCName}-Instance
+
+  ServerRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Principal:
+              Service:
+                - "ec2.amazonaws.com"
+            Action:
+              - sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/AmazonSSMManagedInstanceCore
+
+  S3BucketPolicyForSSM:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: S3BucketPolicyForSSM
+      Roles:
+        - !Ref ServerRole
+      PolicyDocument:
+        Version: "2012-10-17"
+        Statement:
+          - Effect: "Allow"
+            Action: "s3:GetObject"
+            Resource:
+              - !Sub arn:aws:s3:::aws-ssm-${AWS::Region}/*
+              - !Sub arn:aws:s3:::aws-windows-downloads-${AWS::Region}/*
+              - !Sub arn:aws:s3:::amazon-ssm-${AWS::Region}/*
+              - !Sub arn:aws:s3:::amazon-ssm-packages-${AWS::Region}/*
+              - !Sub arn:aws:s3:::${AWS::Region}-birdwatcher-prod/*
+              - !Sub arn:aws:s3:::patch-baseline-snapshot-${AWS::Region}/*
+
+  ServerProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: "/"
+      Roles:
+        - Ref: ServerRole
+      InstanceProfileName: !Sub ${VPCName}-Server
