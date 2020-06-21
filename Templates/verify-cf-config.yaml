@@ -1,0 +1,68 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: config
+
+Resources:
+  ConfigDeliveryChannel:
+    Type: AWS::Config::DeliveryChannel
+    Properties:
+      Name: default
+      S3BucketName: !Ref S3ForConfig
+      SnsTopicARN: !Ref MySNSTopic
+
+  ConfigConfigurationRecorder:
+    Type: AWS::Config::ConfigurationRecorder
+    Properties:
+      Name: default
+      RecordingGroup:
+        AllSupported: true
+        IncludeGlobalResourceTypes: true
+      RoleARN: !Sub arn:aws:iam::${AWS::AccountId}:role/aws-service-role/config.amazonaws.com/AWSServiceRoleForConfig
+
+  MySNSTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: "SampleTopic"
+
+  S3ForConfig:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub verifyconfig-${AWS::Region}-${AWS::AccountId}
+      AccessControl : Private
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  S3BucketPolicyForConfig:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3ForConfig
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Ref S3ForConfig
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action:
+              - 's3:GetBucketAcl'
+              - 's3:ListBucket'
+            Resource:
+              - !GetAtt S3ForConfig.Arn
+          - Effect: Allow
+            Principal:
+              Service: config.amazonaws.com
+            Action:
+              - 's3:PutObject'
+            Resource:
+              - !Join
+                - ''
+                - - !GetAtt S3ForConfig.Arn
+                  - /AWSLogs/
+                  - !Sub ${AWS::AccountId}
+                  - /Config/*
+            Condition:
+              StringEquals:
+                s3:x-amz-acl: bucket-owner-full-control
