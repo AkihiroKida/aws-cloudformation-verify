@@ -1,0 +1,59 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: config
+
+Resources:
+  S3ForLogs:
+    Type: 'AWS::S3::Bucket'
+    Properties:
+      BucketName: !Sub verifys3forlogs-${AWS::Region}-${AWS::AccountId}
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      AccessControl : LogDeliveryWrite
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+
+  S3BucketPolicyForLogs:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref S3ForLogs
+      PolicyDocument:
+        Version: 2012-10-17
+        Id: !Ref S3ForLogs
+        Statement:
+          - Effect: Deny
+            Principal:
+              AWS:
+                - arn:aws:iam::922068499753:root
+                - arn:aws:iam::922068499753:role/ConfigurationService
+                - arn:aws:sts::922068499753:assumed-role/ConfigurationService/CreatePublishingDestination
+            Action:
+              - 's3:PutObject*'
+              - 's3:DeleteObject*'
+            Resource:
+              - !Join
+                - ''
+                - - !GetAtt S3ForLogs.Arn
+                  - /*
+          - Effect: Allow
+            Principal:
+              Service: guardduty.amazonaws.com
+            Action:
+              - 's3:GetBucketLocation'
+            Resource:
+              - !GetAtt S3ForLogs.Arn
+          - Effect: Allow
+            Principal:
+              Service: guardduty.amazonaws.com
+            Action:
+              - 's3:PutObject'
+            Resource:
+              - !Join
+                - ''
+                - - !GetAtt S3ForLogs.Arn
+                  - /*

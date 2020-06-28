@@ -1,0 +1,37 @@
+AWSTemplateFormatVersion: "2010-09-09"
+
+Description: config
+
+Resources:
+  CMKForGuardDuty:
+    Type: AWS::KMS::Key
+    Properties:
+      Enabled: true
+      EnableKeyRotation: true
+      KeyPolicy:
+        Version: "2012-10-17"
+        Id: "key-default-policy"
+        Statement:
+          - Sid: Enable IAM User Permissions
+            Effect: Allow
+            Principal:
+              AWS: !Join
+                - ''
+                - - 'arn:aws:iam::'
+                  - !Ref 'AWS::AccountId'
+                  - ':root'
+            Action: 'kms:*'
+            Resource: '*'
+          - Sid: Allow GuardDuty to use the key
+            Effect: Allow
+            Principal:
+              Service: guardduty.amazonaws.com
+            Action: 'kms:GenerateDataKey'
+            Resource: '*'
+      PendingWindowInDays: 7
+
+  KeyAliasForGuardDuty:
+    Type: AWS::KMS::Alias
+    Properties:
+      AliasName: alias/ForGuardDuty
+      TargetKeyId: !GetAtt CMKForGuardDuty.Arn
