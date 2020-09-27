@@ -1,0 +1,20 @@
+AWSTemplateFormatVersion: "2010-09-09"
+Description: stacks
+Resources:
+  VpcStack:
+    Type: AWS::CloudFormation::Stack
+    Properties:
+      TemplateURL: ../Templates/checkecs-cf-vpc.yaml
+      Parameters:
+        VPCName: CheckEsc
+        VPCCiderBlock: 172.16.0.0/16
+        PublicSubnetCiderBlock: 172.16.10.0/24
+
+  Ec2InstanceStack:
+    Type: AWS::CloudFormation::Stack
+    DependsOn:
+      - VpcStack
+    Properties:
+      TemplateURL: ../Templates/checkecs-cf-ec2.yaml
+      Parameters:
+        VPCName: CheckEsc
